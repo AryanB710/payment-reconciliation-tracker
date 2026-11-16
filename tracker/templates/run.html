@@ -1,0 +1,85 @@
+{% extends "base.html" %}
+{% block title %}Run #{{ run.id }}{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <a class="muted" href="{{ url_for('tracker.index') }}">← All runs</a>
+    <h1>Run #{{ run.id }} · {{ run.label }}</h1>
+    <p class="muted">As of {{ run.as_of }} · settlement window T+{{ run.settlement_window }} · created {{ run.created_at }}</p>
+  </div>
+  <a class="btn" href="{{ url_for('tracker.export_run', run_id=run.id) }}">Export CSV</a>
+</div>
+
+{% set match_rate = (100 * run.fully_matched_orders / run.total_orders) if run.total_orders else 0 %}
+<section class="stats">
+  <div class="stat"><span class="stat-label">Orders</span><span class="stat-value">{{ run.total_orders }}</span></div>
+  <div class="stat"><span class="stat-label">Payments</span><span class="stat-value">{{ run.total_payments }}</span></div>
+  <div class="stat"><span class="stat-label">Settlements</span><span class="stat-value">{{ run.total_settlements }}</span></div>
+  <div class="stat"><span class="stat-label">Match rate</span><span class="stat-value">{{ '%.1f' % match_rate }}%</span>
+    <span class="bar"><span style="width: {{ match_rate }}%"></span></span></div>
+  <div class="stat"><span class="stat-label">Pending settlement</span><span class="stat-value">{{ run.pending_settlements }}</span></div>
+  <div class="stat"><span class="stat-label">Exceptions</span><span class="stat-value">{{ run.exception_count }}</span>
+    <span class="muted small">{{ breakdown.by_status.get('OPEN', 0) + breakdown.by_status.get('IN_REVIEW', 0) }} open ·
+      {{ breakdown.by_status.get('RESOLVED', 0) }} resolved</span></div>
+</section>
+
+{% if breakdown.by_type %}
+<section class="card">
+  <h2>Exceptions by type</h2>
+  {% set top = breakdown.by_type[0].n %}
+  <div class="breakdown">
+  {% for row in breakdown.by_type %}
+    <a class="breakdown-row" href="{{ url_for('tracker.run_detail', run_id=run.id, type=row.type) }}">
+      <span class="sev sev-{{ row.severity|lower }}">{{ row.severity }}</span>
+      <span class="breakdown-name">{{ row.type|label }}</span>
+      <span class="breakdown-bar"><span style="width: {{ 100 * row.n / top }}%"></span></span>
+      <span class="num">{{ row.n }}</span>
+    </a>
+  {% endfor %}
+  </div>
+</section>
+{% endif %}
+
+<section class="card">
+  <h2>Exceptions</h2>
+  <form class="filters" method="get">
+    <input type="search" name="q" value="{{ filters.q or '' }}" placeholder="Search order, payment or settlement ID">
+    <select name="status"><option value="">All statuses</option>
+      {% for s in statuses %}<option value="{{ s }}" {% if filters.status == s %}selected{% endif %}>{{ s|label }}</option>{% endfor %}
+    </select>
+    <select name="severity"><option value="">All severities</option>
+      {% for s in severities %}<option value="{{ s }}" {% if filters.severity == s %}selected{% endif %}>{{ s|label }}</option>{% endfor %}
+    </select>
+    <select name="type"><option value="">All types</option>
+      {% for t in types %}<option value="{{ t }}" {% if filters.type == t %}selected{% endif %}>{{ t|label }}</option>{% endfor %}
+    </select>
+    <button class="btn" type="submit">Filter</button>
+    <a class="muted" href="{{ url_for('tracker.run_detail', run_id=run.id) }}">Clear</a>
+  </form>
+
+  {% if exceptions %}
+  <table class="table">
+    <thead><tr><th>#</th><th>Severity</th><th>Type</th><th>Order</th><th>Payment</th>
+      <th class="num">Expected</th><th class="num">Actual</th><th class="num">Diff</th><th>Status</th><th>Assignee</th></tr></thead>
+    <tbody>
+    {% for e in exceptions %}
+      <tr>
+        <td><a href="{{ url_for('tracker.exception_detail', exception_id=e.id) }}">#{{ e.id }}</a></td>
+        <td><span class="sev sev-{{ e.severity|lower }}">{{ e.severity }}</span></td>
+        <td><a href="{{ url_for('tracker.exception_detail', exception_id=e.id) }}">{{ e.type|label }}</a></td>
+        <td><code>{{ e.order_id or '—' }}</code></td>
+        <td><code>{{ e.payment_id or '—' }}</code></td>
+        <td class="num">{{ e.expected|money }}</td>
+        <td class="num">{{ e.actual|money }}</td>
+        <td class="num {% if e.difference and e.difference|float != 0 %}neg{% endif %}">{{ e.difference|money }}</td>
+        <td><span class="pill pill-{{ e.status|lower }}">{{ e.status|label }}</span></td>
+        <td>{{ e.assignee or '—' }}</td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+    <p class="muted">No exceptions match these filters.</p>
+  {% endif %}
+</section>
+{% endblock %}

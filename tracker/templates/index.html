@@ -1,0 +1,62 @@
+{% extends "base.html" %}
+{% block title %}Runs{% endblock %}
+{% block content %}
+<section class="grid-2">
+  <div class="card">
+    <h2>New reconciliation run</h2>
+    <p class="muted">Upload the three CSV exports. Templates are in <code>sample_data/</code>.</p>
+    <form method="post" action="{{ url_for('tracker.create_run') }}" enctype="multipart/form-data" class="form">
+      <label>Run label <input type="text" name="label" placeholder="e.g. November week 2"></label>
+      <label>orders.csv <input type="file" name="orders" accept=".csv" required></label>
+      <label>payments.csv <input type="file" name="payments" accept=".csv" required></label>
+      <label>settlements.csv <input type="file" name="settlements" accept=".csv" required></label>
+      <div class="row">
+        <label>Settlement window (days) <input type="number" name="settlement_window" value="2" min="0" max="30"></label>
+        <label>As-of date (optional) <input type="date" name="as_of"></label>
+      </div>
+      <button class="btn primary" type="submit">Run reconciliation</button>
+    </form>
+  </div>
+  <div class="card">
+    <h2>Try it instantly</h2>
+    <p class="muted">Run the engine on bundled synthetic data with known, injected discrepancies.</p>
+    <form method="post" action="{{ url_for('tracker.sample_run') }}">
+      <button class="btn" type="submit">Run on sample data</button>
+    </form>
+    <h3>What gets checked</h3>
+    <ul class="checks">
+      <li>Duplicate records and duplicate charges</li>
+      <li>Orders with no payment; payments with no order</li>
+      <li>Amount and currency mismatches</li>
+      <li>Missing settlements after T+N days</li>
+      <li>Settlement gross and fee arithmetic</li>
+    </ul>
+  </div>
+</section>
+
+<section class="card">
+  <h2>Previous runs</h2>
+  {% if runs %}
+  <table class="table">
+    <thead><tr><th>#</th><th>Label</th><th>Created</th><th>As of</th><th class="num">Orders</th>
+      <th class="num">Match rate</th><th class="num">Exceptions</th><th class="num">Open</th></tr></thead>
+    <tbody>
+    {% for r in runs %}
+      <tr>
+        <td><a href="{{ url_for('tracker.run_detail', run_id=r.id) }}">#{{ r.id }}</a></td>
+        <td><a href="{{ url_for('tracker.run_detail', run_id=r.id) }}">{{ r.label }}</a></td>
+        <td class="muted">{{ r.created_at }}</td>
+        <td>{{ r.as_of }}</td>
+        <td class="num">{{ r.total_orders }}</td>
+        <td class="num">{{ '%.1f' % (100 * r.fully_matched_orders / r.total_orders) if r.total_orders else '0.0' }}%</td>
+        <td class="num">{{ r.exception_count }}</td>
+        <td class="num">{% if r.open_count %}<span class="pill pill-open">{{ r.open_count }}</span>{% else %}0{% endif %}</td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+    <p class="muted">No runs yet. Upload files or try the sample data.</p>
+  {% endif %}
+</section>
+{% endblock %}
